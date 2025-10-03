@@ -1,42 +1,149 @@
+# Scala
+*.class
+*.log
+*.jar
+*.war
+*.ear
+*.classpath
+*.project
+*.settings
+*.cache
+*.tmp
+*.swp
+*.swo
+*~
+
 # SBT
 target/
 project/target/
 project/project/
-project/plugins/project/
-.history
 .cache
+.history
 .lib/
+dist/*
+lib_managed/
+src_managed/
+project/boot/
+project/plugins/project/
 
 # IDE
 .idea/
+.vscode/
 *.iml
 *.ipr
 *.iws
-.vscode/
-.classpath
-.project
-.settings/
-
-# OS
 .DS_Store
 Thumbs.db
 
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
 # Logs
+logs/
 *.log
+log-*.txt
 
 # Temporary files
 *.tmp
 *.temp
-*~
+*.bak
+*.backup
 
-# JAR files (except the main artifact)
-*.jar
-!target/scala-*/gatling-prometheus-plugin*.jar
+# Build artifacts
+target/
+out/
+build/
+dist/
 
-# Scala
+# Test results
+test-results/
+coverage/
+.nyc_output/
+
+# Node modules (if any)
+node_modules/
+
+# Environment files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# JetBrains IDEs
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# VS Code
+.vscode/
+
+# Eclipse
+.project
+.classpath
+.settings/
+
+# IntelliJ
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# Maven
+target/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+buildNumber.properties
+.mvn/timing.properties
+.mvn/wrapper/maven-wrapper.jar
+
+# Gradle
+.gradle
+build/
+!gradle/wrapper/gradle-wrapper.jar
+!**/src/main/**/build/
+!**/src/test/**/build/
+
+# Scala specific
 *.class
 *.log
+*.jar
+*.war
+*.ear
+*.classpath
+*.project
+*.settings
+*.cache
+*.tmp
+*.swp
+*.swo
+*~
+
+# SBT specific
+target/
+project/target/
+project/project/
+.cache
+.history
+.lib/
+dist/*
+lib_managed/
+src_managed/
+project/boot/
+project/plugins/project/
 
 # Metals
 .metals/
 .bloop/
+.vscode/
