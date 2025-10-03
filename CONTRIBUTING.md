@@ -1,8 +1,8 @@
 # Руководство по вкладу в проект
 
-Спасибо за интерес к проекту Gatling Prometheus Metrics Plugin! 🎉
+Спасибо за интерес к проекту Gatling Prometheus Metrics Plugin!
 
-## 🚀 Быстрый старт
+## Быстрый старт
 
 ### 1. Fork и клонирование
 ```bash
@@ -29,7 +29,7 @@ sbt compile
 sbt test
 ```
 
-## 🔧 Процесс разработки
+## Процесс разработки
 
 ### 1. Создание feature branch
 ```bash
@@ -67,18 +67,18 @@ sbt assembly
 ls -la target/scala-2.13/gatling-prometheus-plugin-fat.jar
 ```
 
-## 📋 Стандарты кода
+## Стандарты кода
 
 ### Scala стиль
 ```scala
-// ✅ Хорошо
+// Хорошо
 class MetricsManager {
   def recordMetric(name: String, value: Double): Unit = {
     // Реализация
   }
 }
 
-// ❌ Плохо  
+// Плохо  
 class metricsmanager {
   def recordmetric(name:String,value:Double):Unit={
     // реализация
@@ -90,12 +90,12 @@ class metricsmanager {
 
 #### 1. Single Responsibility Principle (SRP)
 ```scala
-// ✅ Хорошо - один класс, одна ответственность
+// Хорошо - один класс, одна ответственность
 class HttpMetricsCollector {
   def collectHttpRequest(...): Unit = { /* только сбор HTTP метрик */ }
 }
 
-// ❌ Плохо - много ответственностей
+// Плохо - много ответственностей
 class MetricsManager {
   def collectHttpRequest(...): Unit = { /* сбор метрик */ }
   def sendToDatabase(...): Unit = { /* отправка в БД */ }
@@ -105,7 +105,7 @@ class MetricsManager {
 
 #### 2. Open/Closed Principle (OCP)
 ```scala
-// ✅ Хорошо - легко расширяется
+// Хорошо - легко расширяется
 trait MetricExporter {
   def export(metrics: Seq[Metric]): Unit
 }
@@ -116,7 +116,7 @@ class InfluxDBExporter extends MetricExporter { /* новая реализаци
 
 #### 3. Liskov Substitution Principle (LSP)
 ```scala
-// ✅ Хорошо - все реализации взаимозаменяемы
+// Хорошо - все реализации взаимозаменяемы
 trait MetricRepository {
   def save(metric: Metric): Unit
   def findByTestId(testId: String): Seq[Metric]
@@ -128,7 +128,7 @@ class InMemoryRepository extends MetricRepository { /* другая реализ
 
 ### Thread Safety
 ```scala
-// ✅ Хорошо - thread-safe
+// Хорошо - thread-safe
 class ThreadSafeMetricsManager {
   private val metrics = new ConcurrentHashMap[String, AtomicLong]()
   
@@ -137,7 +137,7 @@ class ThreadSafeMetricsManager {
   }
 }
 
-// ❌ Плохо - не thread-safe
+// Плохо - не thread-safe
 class UnsafeMetricsManager {
   private var metrics = Map[String, Long]()
   
@@ -147,7 +147,7 @@ class UnsafeMetricsManager {
 }
 ```
 
-## 🧪 Тестирование
+## Тестирование
 
 ### Unit тесты
 ```scala
@@ -198,7 +198,7 @@ class ThreadSafetyTest extends AnyFunSuite {
 }
 ```
 
-## 📝 Документация
+## Документация
 
 ### Обновление README
 - Обновляйте README при добавлении новых функций
@@ -240,7 +240,7 @@ class PrometheusMetricsManager(
 }
 ```
 
-## 🔄 Процесс Pull Request
+## Процесс Pull Request
 
 ### 1. Подготовка
 ```bash
@@ -288,7 +288,7 @@ sbt assembly
 - [ ] Обновлен CHANGELOG
 ```
 
-## 🐛 Сообщение об ошибках
+## Сообщение об ошибках
 
 ### Шаблон Issue
 ```markdown
@@ -316,7 +316,7 @@ sbt assembly
 Логи, скриншоты, конфигурация
 ```
 
-## 💡 Предложения функций
+## Предложения функций
 
 ### Шаблон Feature Request
 ```markdown
@@ -336,7 +336,7 @@ sbt assembly
 Примеры использования, ссылки на похожие функции
 ```
 
-## 🏷️ Версионирование
+## Версионирование
 
 Проект использует [Semantic Versioning](https://semver.org/):
 
@@ -355,16 +355,16 @@ version := "1.4.0"
 - Новая функция X
 ```
 
-## 📞 Получение помощи
+## Получение помощи
 
 - **GitHub Issues**: Для багов и предложений
 - **GitHub Discussions**: Для вопросов и обсуждений
 - **Email**: support@penelopa.dev
 
-## 📄 Лицензия
+## Лицензия
 
 Внося вклад в проект, вы соглашаетесь с тем, что ваш вклад будет лицензирован под MIT License.
 
 ---
 
-**Спасибо за ваш вклад! 🎉**
+**Спасибо за ваш вклад!**

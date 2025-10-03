@@ -428,27 +428,27 @@ object AutoChains {
         try {
           import sun.misc.Signal
           Signal.handle(new Signal("TERM"), _ => {
-            logger.error("🚨🚨🚨 SIGTERM RECEIVED! Kubernetes Cancel Job detected!")
-            logger.error("📤 SIGTERM: Flushing metrics immediately...")
+            logger.error("SIGTERM RECEIVED! Kubernetes Cancel Job detected!")
+            logger.error("SIGTERM: Flushing metrics immediately...")
             safeFlushMetrics(remoteWriter)
-            logger.error("✅ SIGTERM: Metrics flushed successfully!")
+            logger.error("SIGTERM: Metrics flushed successfully!")
           })
-          logger.info("📤 SIGTERM handler registered successfully")
+          logger.info("SIGTERM handler registered successfully")
         } catch {
           case e: Exception =>
-            logger.warn(s"⚠️ Could not register SIGTERM handler: ${e.getMessage}")
+            logger.warn(s"Could not register SIGTERM handler: ${e.getMessage}")
         }
         
         // 2) Shutdown hook - запасной путь для других случаев остановки
         val shutdownHook = new Thread(() => {
-          logger.error("🚨🚨🚨 SHUTDOWN HOOK TRIGGERED! Test is stopping...")
-          logger.error("📤 ShutdownHook: Sending final metrics...")
+          logger.error("SHUTDOWN HOOK TRIGGERED! Test is stopping...")
+          logger.error("ShutdownHook: Sending final metrics...")
           safeFlushMetrics(remoteWriter)
-          logger.error("✅ ShutdownHook: Final metrics sent!")
+          logger.error("ShutdownHook: Final metrics sent!")
         })
         
         Runtime.getRuntime.addShutdownHook(shutdownHook)
-        logger.info("📤 Shutdown hook registered successfully")
+        logger.info("Shutdown hook registered successfully")
         
         // Генерируем системные метрики при старте
         manager.logSystemMetrics()

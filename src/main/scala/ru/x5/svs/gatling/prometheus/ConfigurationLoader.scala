@@ -13,7 +13,7 @@ object ConfigurationLoader {
   case class Config(testConfig: TestConfig, remoteWriteConfig: Option[RemoteWriteConfig])
   
   def loadFromSystem(): Config = {
-    logger.info("🔧 Loading configuration from system properties and environment variables")
+    logger.info("Loading configuration from system properties and environment variables")
     
     // Загружаем конфигурацию теста
     val testConfig = loadTestConfig()
@@ -25,7 +25,7 @@ object ConfigurationLoader {
   }
   
   private def loadTestConfig(): TestConfig = {
-    logger.debug("🔍 Loading test configuration...")
+    logger.debug("Loading test configuration...")
     
     val testId = Option(System.getProperty("penelopa.testid"))
       .orElse(Option(System.getenv("PENELOPA_TESTID")))

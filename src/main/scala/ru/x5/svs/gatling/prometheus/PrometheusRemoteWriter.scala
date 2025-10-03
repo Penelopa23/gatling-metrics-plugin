@@ -35,7 +35,7 @@ class PrometheusRemoteWriter(
    */
   def start(): Unit = {
     if (running.compareAndSet(false, true)) {
-      logger.info(s"🔥 ORIGINAL PrometheusRemoteWriter: Starting periodic export to $victoriaMetricsUrl")
+      logger.info(s"ORIGINAL PrometheusRemoteWriter: Starting periodic export to $victoriaMetricsUrl")
       
       // Запускаем мониторинг потоков
       // ThreadMonitor.startMonitoring()

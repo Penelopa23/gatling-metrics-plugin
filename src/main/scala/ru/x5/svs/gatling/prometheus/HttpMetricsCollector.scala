@@ -14,7 +14,7 @@ class HttpMetricsCollector(implicit private val ec: ExecutionContext) {
    * Собрать HTTP ошибку - С ДЕТАЛЬНЫМИ СООБЩЕНИЯМИ!
    */
   def collectHttpError(scenario: String, request: String, method: String, status: String, errorMessage: String): Unit = {
-    logger.info(s"🔥 ORIGINAL WITH DETAILED ERRORS HttpMetricsCollector: Collecting HTTP error: scenario=$scenario, request=$request, method=$method, status=$status, error=$errorMessage")
+    logger.info(s"ORIGINAL WITH DETAILED ERRORS HttpMetricsCollector: Collecting HTTP error: scenario=$scenario, request=$request, method=$method, status=$status, error=$errorMessage")
     
     // Отправляем в оригинальный PrometheusMetricsManager
     PrometheusMetricsManager.getInstance.foreach { manager =>
@@ -26,7 +26,7 @@ class HttpMetricsCollector(implicit private val ec: ExecutionContext) {
    * Собрать HTTP запрос
    */
   def collectHttpRequest(scenario: String, request: String, method: String, status: String): Unit = {
-    logger.info(s"🔥 ORIGINAL HttpMetricsCollector: Collecting HTTP request: scenario=$scenario, request=$request, method=$method, status=$status")
+    logger.info(s"ORIGINAL HttpMetricsCollector: Collecting HTTP request: scenario=$scenario, request=$request, method=$method, status=$status")
     
     // Отправляем в оригинальный PrometheusMetricsManager
     PrometheusMetricsManager.getInstance.foreach { manager =>

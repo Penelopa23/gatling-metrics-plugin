@@ -196,7 +196,7 @@ class PrometheusMetricsManager(
     systemMetrics.foreach { case (metricName, value) =>
       val labels = s"""testid="$testId",pod="$pod""""
       val metricLine = s"$metricName{$labels} $value"
-      logger.error(s"📊 SYSTEM METRIC: $metricLine")
+      logger.error(s"SYSTEM METRIC: $metricLine")
     }
     
     // Логируем метрики виртуальных пользователей (текущее и пиковое)
@@ -208,9 +208,9 @@ class PrometheusMetricsManager(
     
     // Логируем пиковое количество VU
     val peakVuValue = getPeakVirtualUsersCount()
-    logger.error(s"📊 VU PEAK DEBUG: peakVuValue=$peakVuValue, currentVuValue=$vuValue")
+    logger.error(s"VU PEAK DEBUG: peakVuValue=$peakVuValue, currentVuValue=$vuValue")
     val peakVuMetricLine = s"gatling_vus_peak{$vuLabels} $peakVuValue"
-    logger.error(s"📊 VU PEAK METRIC: $peakVuMetricLine")
+    logger.error(s"VU PEAK METRIC: $peakVuMetricLine")
   }
   
   /**
@@ -319,7 +319,7 @@ class PrometheusMetricsManager(
         val labels = s"""testid="$testId",pod="$pod",scenario="$scenario",name="$request",method="$method",status="$status",error_message="$errorMessage""""
         val metricLine = s"gatling_http_req_failed{$labels} $count $timestamp"
         lines += metricLine
-        logger.error(s"📊 METRIC: $metricLine")
+        logger.error(s"METRIC: $metricLine")
       }
     }
     
@@ -335,7 +335,7 @@ class PrometheusMetricsManager(
         val labels = s"""testid="$testId",pod="$pod",scenario="$scenario",name="$request",method="$method",status="$status""""
         val metricLine = s"gatling_http_reqs_total{$labels} $count $timestamp"
         lines += metricLine
-        logger.error(s"📊 METRIC: $metricLine")
+        logger.error(s"METRIC: $metricLine")
       }
     }
     
@@ -360,7 +360,7 @@ class PrometheusMetricsManager(
         
         lines += metric_avg
         
-        logger.error(s"📊 DURATION METRIC: $metric_avg")
+        logger.error(s"DURATION METRIC: $metric_avg")
       }
     }
     
@@ -370,11 +370,11 @@ class PrometheusMetricsManager(
     val vuLabels = s"""testid="$testId",pod="$pod""""
     val metricVus = s"gatling_vus{$vuLabels} $vuValue $timestamp"
     lines += metricVus
-    logger.error(s"📊 METRIC: $metricVus")
+    logger.error(s"METRIC: $metricVus")
     
     // Пиковое количество виртуальных пользователей
     val peakVuValue = getPeakVirtualUsersCount()
-    logger.error(s"📊 VU PEAK DEBUG: peakVuValue=$peakVuValue, currentVuValue=$vuValue")
+    logger.error(s"VU PEAK DEBUG: peakVuValue=$peakVuValue, currentVuValue=$vuValue")
     val metricVusPeak = s"gatling_vus_peak{$vuLabels} $peakVuValue $timestamp"
     lines += metricVusPeak
     logger.error(s"📊 METRIC: $metricVusPeak")
@@ -406,7 +406,7 @@ class PrometheusMetricsManager(
         val labels = s"""testid="$testId",pod="$pod",scenario="$scenario""""
         val metricLine = s"gatling_iteration_duration{$labels} $currentDuration $timestamp"
         lines += metricLine
-        logger.error(s"📊 ITERATION METRIC: $metricLine")
+        logger.error(s"ITERATION METRIC: $metricLine")
       }
     }
     
@@ -415,7 +415,7 @@ class PrometheusMetricsManager(
       val labels = s"""testid="$testId",pod="$pod""""
       val metricLine = s"$metricName{$labels} $value $timestamp"
       lines += metricLine
-      logger.error(s"📊 SYSTEM METRIC: $metricLine")
+      logger.error(s"SYSTEM METRIC: $metricLine")
     }
     
     logger.error(s"📊 TOTAL METRICS GENERATED: ${lines.size} lines")
