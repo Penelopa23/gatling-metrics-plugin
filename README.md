@@ -18,38 +18,49 @@ wget https://github.com/Penelopa23/gatling-metrics-plugin/releases/latest/downlo
 cp gatling-prometheus-plugin-fat.jar /path/to/your/gatling/project/lib/
 ```
 
-### 2. Использование (2 строки кода!)
+### 2. Использование (3-слойная архитектура)
 
-#### Простой способ (автоматическое определение имен)
-```scala
-import ru.x5.svs.gatling.prometheus.AutoChains
-import io.gatling.javaapi.core.CoreDsl._
-import io.gatling.javaapi.http.HttpDsl._
-
-val scenario = scenario("My Test")
-  .exec(
-    AutoChains.withAutoMetrics(  // ← Без параметров - автоматическое определение
-      http("API Request")
-        .get("/api/endpoint")
-        .check(status().is(200))
-    )
-  )
-
-// Метрики автоматически отправляются в Victoria Metrics! 🎯
+#### Слой 1: Chains (Высокоуровневый)
+```java
+// Chains.java - Оркестрация сценариев
+public static ChainBuilder verifySignature(String signatureType) {
+    return AutoChains.withAutoMetrics(
+        feed(jsonFile(signatureType + ".json").circular())
+        .exec(postVerifySignature(signatureType))  // ← Actions
+        .exec(session -> {
+            System.out.println("Response: " + session.getString("Response"));
+            return session;
+        }),
+        "SVS-Signature-Verification",  // scenarioName для группировки
+        "TC" + signatureType           // requestName для идентификации
+    );
+}
 ```
 
-#### Продвинутый способ (с указанием имен)
+#### Слой 2: Actions (Средний)
+```java
+// Actions.java - Бизнес-логика HTTP запросов
+public static HttpRequestActionBuilder postVerifySignature(String signatureType) {
+    return MetricsChecks.sendMetrics(  // ← Автоматический сбор метрик
+        http("TC" + signatureType)
+            .post("/v1/svs-fk/signatures")
+            .body(StringBody("${body.jsonStringify()}"))
+            .check(status().is(200))
+            .check(jsonPath("$..Result").exists())
+    );
+}
+```
+
+#### Слой 3: MetricsChecks (Низкоуровневый)
 ```scala
-val scenario = scenario("My Test")
-  .exec(
-    AutoChains.withAutoMetrics(  // ← С параметрами для точного именования
-      http("API Request")
-        .get("/api/endpoint")
-        .check(status().is(200)),
-      "SVS-Signature-Verification",  // scenarioName для группировки метрик
-      "TC01_CAdES_BES_ATTACHED"       // requestName для идентификации запроса
-    )
-  )
+// MetricsChecks.scala - Сбор технических метрик
+def sendMetrics(requestBuilder: HttpRequestActionBuilder): HttpRequestActionBuilder = {
+  requestBuilder
+    .check(responseTimeInMillis().saveAs("responseTime"))
+    .check(bodyBytes().saveAs("responseSize"))
+    .check(bodyString().saveAs("Response"))
+    .check(status().saveAs("statusCode"))
+}
 ```
 
 ### 3. Настройка Victoria Metrics (опционально)
@@ -58,29 +69,148 @@ export PENELOPA_REMOTE_WRITE_URL="http://victoria-metrics:8428/api/v1/import/pro
 export PENELOPA_PUSH_INTERVAL="5"  # интервал отправки в секундах
 ```
 
+## 🏗️ Архитектура проекта
+
+### Многоуровневая архитектура
+
+```mermaid
+graph TB
+    A[Chains.java] --> B[AutoChains.withAutoMetrics]
+    A --> C[Actions.java]
+    C --> D[MetricsChecks.sendMetrics]
+    D --> E[HTTP Request + Checks]
+    B --> F[PrometheusMetricsManager]
+    F --> G[Victoria Metrics]
+    
+    H[SIGTERM Handler] --> F
+    I[Shutdown Hook] --> F
+```
+
+### Принципы дизайна
+
+| Слой | Ответственность | Компоненты |
+|------|-----------------|------------|
+| **Chains** | Оркестрация сценариев | `AutoChains.withAutoMetrics()` |
+| **Actions** | Бизнес-логика HTTP | `MetricsChecks.sendMetrics()` |
+| **MetricsChecks** | Технические метрики | HTTP checks, response data |
+| **PrometheusMetricsManager** | Управление метриками | Сбор, агрегация, экспорт |
+
 ## ✨ Ключевые особенности
 
 | Особенность | Описание | Преимущество |
 |-------------|----------|--------------|
-| **🎯 Автоматический сбор** | Просто оберните цепочку в `AutoChains.withAutoMetrics()` | Никаких ручных вызовов |
-| **📊 k6 совместимость** | Метрики называются как в k6 (`gatling_*`) | Легкая миграция с k6 |
+| **🎯 3-слойная архитектура** | Chains → Actions → MetricsChecks | Четкое разделение ответственности |
+| **📊 Автоматический сбор** | `MetricsChecks.sendMetrics()` автоматически добавляет checks | Никаких ручных вызовов |
+| **📈 k6 совместимость** | Метрики называются как в k6 (`gatling_*`) | Легкая миграция с k6 |
 | **☸️ Kubernetes ready** | SIGTERM handler для graceful shutdown | Надежная работа в K8s |
-| **🔧 Простая интеграция** | Один JAR файл, никаких зависимостей | Быстрое внедрение |
-| **📈 Детальные метрики** | HTTP, VU, системные метрики | Полная картина производительности |
-| **🛡️ Thread-safe** | Безопасная работа в многопоточной среде | Стабильная работа |
+| **🔧 Thread-safe** | Безопасная работа в многопоточной среде | Стабильная работа |
+
+## 💻 Использование
+
+### Простое использование (Рекомендуется)
+
+#### Автоматическое определение имен
+```scala
+import ru.x5.svs.gatling.prometheus.AutoChains
+import io.gatling.javaapi.core.CoreDsl._
+import io.gatling.javaapi.http.HttpDsl._
+
+val scenario = scenario("My Test")
+  .exec(
+    AutoChains.withAutoMetrics(  // Без параметров - автоматическое определение
+      http("API Request")
+        .get("/api/endpoint")
+        .check(status().is(200))
+    )
+  )
+```
+
+#### С указанием имен для точной группировки
+```scala
+val scenario = scenario("SVS Load Test")
+  .exec(
+    AutoChains.withAutoMetrics(
+      http("API Request")
+        .get("/api/endpoint")
+        .check(status().is(200)),
+      "SVS-Signature-Verification",  // scenarioName для группировки
+      "GetUsers"                    // requestName для идентификации
+    )
+  )
+```
+
+### Продвинутое использование (3-слойная архитектура)
+
+#### Слой 1: Chains - Оркестрация
+```java
+// Chains.java
+public class Chains {
+    public static ChainBuilder verifySignature(String signatureType) {
+        return AutoChains.withAutoMetrics(
+            feed(jsonFile(signatureType + ".json").circular())
+            .exec(postVerifySignature(signatureType))
+            .exec(session -> {
+                // Дополнительная обработка
+                System.out.println("Response: " + session.getString("Response"));
+                return session;
+            }),
+            "SVS-Signature-Verification",  // scenarioName
+            "TC" + signatureType           // requestName
+        );
+    }
+}
+```
+
+#### Слой 2: Actions - Бизнес-логика
+```java
+// Actions.java
+public class Actions {
+    public static HttpRequestActionBuilder postVerifySignature(String signatureType) {
+        return MetricsChecks.sendMetrics(  // Автоматический сбор метрик
+            http("TC" + signatureType)
+                .post("/v1/svs-fk/signatures")
+                .body(StringBody("${body.jsonStringify()}"))
+                .check(status().is(200))
+                .check(jsonPath("$..Result").exists())
+        );
+    }
+}
+```
+
+#### Слой 3: MetricsChecks - Технические метрики
+```scala
+// MetricsChecks.scala
+object MetricsChecks {
+  def sendMetrics(requestBuilder: HttpRequestActionBuilder): HttpRequestActionBuilder = {
+    requestBuilder
+      .check(responseTimeInMillis().saveAs("responseTime"))
+      .check(bodyBytes().saveAs("responseSize"))
+      .check(bodyString().saveAs("Response"))
+      .check(status().saveAs("statusCode"))
+  }
+}
+```
+
+### Сравнение подходов
+
+| Подход | Код | Преимущества | Недостатки |
+|--------|-----|--------------|------------|
+| **Автоматический** | `AutoChains.withAutoMetrics(chain)` | Простота, меньше кода | Менее точные имена метрик |
+| **С параметрами** | `AutoChains.withAutoMetrics(chain, scenario, request)` | Точные имена, лучшая группировка | Больше кода |
+| **3-слойная** | Chains → Actions → MetricsChecks | Полный контроль, масштабируемость | Сложнее для простых случаев |
 
 ## 📊 Экспортируемые метрики
 
 ### HTTP метрики
 ```promql
 # Количество HTTP запросов
-gatling_http_reqs_total{testid="test-123", name="API_Call", status="OK"}
+gatling_http_reqs_total{testid="test-123", name="TC01_CAdES_BES_ATTACHED", status="OK"}
 
 # Неудачные запросы  
-gatling_http_req_failed{testid="test-123", name="API_Call", status="KO"}
+gatling_http_req_failed{testid="test-123", name="TC01_CAdES_BES_ATTACHED", status="KO"}
 
 # Время ответа (среднее)
-gatling_http_req_duration{testid="test-123", name="API_Call", status="OK"}
+gatling_http_req_duration{testid="test-123", name="TC01_CAdES_BES_ATTACHED", status="OK"}
 ```
 
 ### Виртуальные пользователи
@@ -99,125 +229,6 @@ gatling_memory_heap_inuse_bytes{testid="test-123"}
 
 # GC статистика
 gatling_gc_count{testid="test-123"}
-```
-
-## 🏗️ Архитектура
-
-### Принципы дизайна
-- **SOLID принципы** - легко тестируемый и расширяемый код
-- **Thread-safe** - безопасная работа в многопоточной среде  
-- **Graceful shutdown** - корректное завершение в Kubernetes
-- **Минимальные зависимости** - только необходимые библиотеки
-
-### Основные компоненты
-
-```mermaid
-graph TB
-    A[AutoChains] --> B[PrometheusMetricsManager]
-    A --> C[MetricsQueue]
-    B --> D[PrometheusRemoteWriter]
-    C --> D
-    D --> E[Victoria Metrics]
-    
-    F[SIGTERM Handler] --> D
-    G[Shutdown Hook] --> D
-```
-
-## 💻 Использование
-
-### Простое использование (Рекомендуется)
-
-#### Автоматическое определение имен
-```scala
-import ru.x5.svs.gatling.prometheus.AutoChains
-import io.gatling.javaapi.core.CoreDsl._
-import io.gatling.javaapi.http.HttpDsl._
-
-val scenario = scenario("Load Test")
-  .exec(
-    AutoChains.withAutoMetrics(  // Без параметров - автоматическое определение
-      http("Get Users")
-        .get("/api/users")
-        .check(status().is(200))
-        .check(jsonPath("$.users").exists())
-    )
-  )
-  .exec(
-    AutoChains.withAutoMetrics(  // Без параметров - автоматическое определение
-      http("Create User") 
-        .post("/api/users")
-        .body(StringBody("""{"name": "John"}"""))
-        .check(status().is(201))
-    )
-  )
-
-setUp(scenario.injectOpen(rampUsers(100).during(60)))
-  .protocols(http.baseUrl("http://localhost:8080"))
-```
-
-#### С указанием имен для точной группировки
-```scala
-val scenario = scenario("SVS Load Test")
-  .exec(
-    AutoChains.withAutoMetrics(
-      http("Get Users")
-        .get("/api/users")
-        .check(status().is(200))
-        .check(jsonPath("$.users").exists()),
-      "SVS-Signature-Verification",  // scenarioName для группировки
-      "GetUsers"                      // requestName для идентификации
-    )
-  )
-  .exec(
-    AutoChains.withAutoMetrics(
-      http("Create User") 
-        .post("/api/users")
-        .body(StringBody("""{"name": "John"}"""))
-        .check(status().is(201)),
-      "SVS-Signature-Verification",  // тот же scenarioName
-      "CreateUser"                    // другой requestName
-    )
-  )
-```
-
-### Сравнение подходов
-
-| Подход | Код | Преимущества | Недостатки |
-|--------|-----|--------------|------------|
-| **Автоматический** | `AutoChains.withAutoMetrics(chain)` | Простота, меньше кода | Менее точные имена метрик |
-| **С параметрами** | `AutoChains.withAutoMetrics(chain, scenario, request)` | Точные имена, лучшая группировка | Больше кода |
-
-### Автоматическое определение имен
-```scala
-// Плагин автоматически определит имена из контекста
-val scenario = scenario("Auto Test")
-  .exec(
-    AutoChains.withAutoMetrics(  // Без параметров - автоматическое определение
-      http("Auto Request")
-        .get("/api/auto")
-        .check(status().is(200))
-    )
-  )
-```
-
-### Продвинутое использование
-```scala
-import ru.x5.svs.gatling.prometheus.{PrometheusMetricsManager, MetricsQueue}
-
-// Ручное управление метриками
-val manager = PrometheusMetricsManager.getInstance()
-
-// Запись кастомных метрик
-manager.recordHttpRequest(
-  scenario = "CustomTest",
-  requestName = "CustomAPI", 
-  method = "POST",
-  status = "OK",
-  responseTime = 150L
-)
-
-// Отслеживание VU
-MetricsQueue.updateVirtualUsersCount(10)
 ```
 
 ## 🔧 Конфигурация
@@ -321,10 +332,11 @@ sbt "set version := \"1.3.8\"" assembly
 ### Структура проекта
 ```
 src/main/scala/ru/x5/svs/gatling/prometheus/
-├── AutoChains.scala              # 🚀 Основной API
+├── AutoChains.scala              # 🚀 Основной API (Chains слой)
 ├── PrometheusMetricsManager.scala # 📊 Управление метриками  
 ├── PrometheusRemoteWriter.scala   # 📤 Отправка метрик
 ├── MetricsQueue.scala             # 📋 Очередь метрик
+├── MetricsChecks.scala             # 🔍 Сбор HTTP метрик (Actions слой)
 ├── ConfigurationLoader.scala     # ⚙️ Конфигурация
 └── HttpMetricsCollector.scala    # 🔍 Сбор HTTP метрик
 ```
@@ -376,7 +388,7 @@ sum(rate(gatling_http_reqs_total{testid=~"$testid"}[$__interval]))
 5. **Откройте** Pull Request
 
 ### Принципы разработки
-- Следуйте **SOLID** принципам
+- Следуйте **3-слойной архитектуре** (Chains → Actions → MetricsChecks)
 - Покрывайте код **тестами**
 - Документируйте **изменения**
 - Используйте **адаптеры** для совместимости
