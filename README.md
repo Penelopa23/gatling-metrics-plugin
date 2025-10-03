@@ -19,6 +19,8 @@ cp gatling-prometheus-plugin-fat.jar /path/to/your/gatling/project/lib/
 ```
 
 ### 2. Использование (2 строки кода!)
+
+#### Простой способ (автоматическое определение имен)
 ```scala
 import ru.x5.svs.gatling.prometheus.AutoChains
 import io.gatling.javaapi.core.CoreDsl._
@@ -26,7 +28,7 @@ import io.gatling.javaapi.http.HttpDsl._
 
 val scenario = scenario("My Test")
   .exec(
-    AutoChains.withAutoMetrics(  // ← Просто оберните вашу цепочку!
+    AutoChains.withAutoMetrics(  // ← Без параметров - автоматическое определение
       http("API Request")
         .get("/api/endpoint")
         .check(status().is(200))
@@ -34,6 +36,20 @@ val scenario = scenario("My Test")
   )
 
 // Метрики автоматически отправляются в Victoria Metrics! 🎯
+```
+
+#### Продвинутый способ (с указанием имен)
+```scala
+val scenario = scenario("My Test")
+  .exec(
+    AutoChains.withAutoMetrics(  // ← С параметрами для точного именования
+      http("API Request")
+        .get("/api/endpoint")
+        .check(status().is(200)),
+      "SVS-Signature-Verification",  // scenarioName для группировки метрик
+      "TC01_CAdES_BES_ATTACHED"       // requestName для идентификации запроса
+    )
+  )
 ```
 
 ### 3. Настройка Victoria Metrics (опционально)
@@ -110,6 +126,8 @@ graph TB
 ## 💻 Использование
 
 ### Простое использование (Рекомендуется)
+
+#### Автоматическое определение имен
 ```scala
 import ru.x5.svs.gatling.prometheus.AutoChains
 import io.gatling.javaapi.core.CoreDsl._
@@ -117,7 +135,7 @@ import io.gatling.javaapi.http.HttpDsl._
 
 val scenario = scenario("Load Test")
   .exec(
-    AutoChains.withAutoMetrics(
+    AutoChains.withAutoMetrics(  // Без параметров - автоматическое определение
       http("Get Users")
         .get("/api/users")
         .check(status().is(200))
@@ -125,7 +143,7 @@ val scenario = scenario("Load Test")
     )
   )
   .exec(
-    AutoChains.withAutoMetrics(
+    AutoChains.withAutoMetrics(  // Без параметров - автоматическое определение
       http("Create User") 
         .post("/api/users")
         .body(StringBody("""{"name": "John"}"""))
@@ -136,6 +154,38 @@ val scenario = scenario("Load Test")
 setUp(scenario.injectOpen(rampUsers(100).during(60)))
   .protocols(http.baseUrl("http://localhost:8080"))
 ```
+
+#### С указанием имен для точной группировки
+```scala
+val scenario = scenario("SVS Load Test")
+  .exec(
+    AutoChains.withAutoMetrics(
+      http("Get Users")
+        .get("/api/users")
+        .check(status().is(200))
+        .check(jsonPath("$.users").exists()),
+      "SVS-Signature-Verification",  // scenarioName для группировки
+      "GetUsers"                      // requestName для идентификации
+    )
+  )
+  .exec(
+    AutoChains.withAutoMetrics(
+      http("Create User") 
+        .post("/api/users")
+        .body(StringBody("""{"name": "John"}"""))
+        .check(status().is(201)),
+      "SVS-Signature-Verification",  // тот же scenarioName
+      "CreateUser"                    // другой requestName
+    )
+  )
+```
+
+### Сравнение подходов
+
+| Подход | Код | Преимущества | Недостатки |
+|--------|-----|--------------|------------|
+| **Автоматический** | `AutoChains.withAutoMetrics(chain)` | Простота, меньше кода | Менее точные имена метрик |
+| **С параметрами** | `AutoChains.withAutoMetrics(chain, scenario, request)` | Точные имена, лучшая группировка | Больше кода |
 
 ### Автоматическое определение имен
 ```scala
