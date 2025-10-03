@@ -277,6 +277,54 @@ sum(gatling_memory_heap_inuse_bytes{testid=~"$testid"}) / 1024 / 1024
 - **VU метрики** - текущие и пиковые пользователи  
 - **Системные метрики** - память, GC, CPU
 
+## Правильное использование в Simulation
+
+### Обязательный after{} блок
+Для гарантированной отправки финальных метрик используйте `after{}` блок в Simulation:
+
+```scala
+class MySimulation extends Simulation {
+  // Создаем writer
+  val writer = new PrometheusRemoteWriter(
+    victoriaMetricsUrl = "http://victoria-metrics:8428/api/v1/import/prometheus",
+    testId = "my-test-123",
+    pod = "runner-abc"
+  )
+
+  before {
+    println("[before] Starting metrics writer")
+    writer.start()  // Запускаем периодическую отправку
+  }
+
+  // Ваши сценарии...
+  val scn = scenario("MyScenario")
+    .exec(AutoChains.withAutoMetrics(
+      http("MyRequest").get("/api/test"),
+      "MyScenario",
+      "MyRequest"
+    ))
+
+  setUp(scn.inject(rampUsers(10).during(30.seconds)))
+
+  after {
+    println("[after] Final flush - guaranteed execution")
+    writer.stop()  // Блокирующий flush с таймаутами
+  }
+
+  // Fallback для экстренных случаев
+  sys.addShutdownHook {
+    println("[hook] Emergency flush (fallback)")
+    writer.stop()
+  }
+}
+```
+
+### Ключевые особенности:
+- **`after{}`** - гарантированно выполняется при нормальном окончании
+- **`writer.stop()`** - блокирующий flush с таймаутами и gzip
+- **`sys.addShutdownHook`** - fallback для экстренных случаев
+- **Идемпотентность** - повторные вызовы `stop()` безопасны
+
 ## Kubernetes интеграция
 
 ### Graceful shutdown

@@ -3,6 +3,12 @@ package ru.x5.svs.gatling.prometheus
 import org.slf4j.LoggerFactory
 import java.util.concurrent.{ScheduledExecutorService, Executors, TimeUnit}
 import scala.concurrent.ExecutionContext
+import org.apache.hc.client5.http.classic.HttpClients
+import org.apache.hc.client5.http.config.RequestConfig
+import org.apache.hc.core5.util.Timeout
+import org.apache.hc.core5.http.io.entity.{StringEntity, GzipCompressingEntity}
+import org.apache.hc.client5.http.classic.methods.HttpPost
+import org.apache.hc.core5.http.ContentType
 // import ru.x5.svs.gatling.prometheus.infrastructure.ThreadSafeExecutorPool
 // import ru.x5.svs.gatling.prometheus.monitoring.ThreadMonitor
 
@@ -18,9 +24,28 @@ class PrometheusRemoteWriter(
 
   private val logger = LoggerFactory.getLogger(classOf[PrometheusRemoteWriter])
   
+  // Состояния для корректной остановки
+  sealed trait State
+  case object RUNNING extends State
+  case object FLUSHING extends State
+  case object STOPPED extends State
+  
+  private val state = new java.util.concurrent.atomic.AtomicReference[State](RUNNING)
+  private val finalized = new java.util.concurrent.atomic.AtomicBoolean(false)
+  
   // ОПТИМИЗИРОВАННЫЙ планировщик для высокой нагрузки
   private val scheduler: ScheduledExecutorService = Executors.newScheduledThreadPool(2)
-  private val running = new java.util.concurrent.atomic.AtomicBoolean(false)
+  
+  // HTTP клиент с таймаутами
+  private val httpClient = HttpClients.custom()
+    .setDefaultRequestConfig(RequestConfig.custom()
+      .setConnectTimeout(Timeout.ofSeconds(3))
+      .setResponseTimeout(Timeout.ofSeconds(5))
+      .build())
+    .build()
+  
+  // Конфигурация для батчинга
+  private val maxCharsPerBatch = 1_000_000  // ~1MB текста безопасно
   
   // THREAD-SAFE пул потоков для обработки метрик с мониторингом
   // private val metricsProcessor = new ThreadSafeExecutorPool(
@@ -34,7 +59,7 @@ class PrometheusRemoteWriter(
    * Запустить периодическую отправку метрик
    */
   def start(): Unit = {
-    if (running.compareAndSet(false, true)) {
+    if (state.get() == RUNNING) {
       logger.info(s"ORIGINAL PrometheusRemoteWriter: Starting periodic export to $victoriaMetricsUrl")
       
       // Запускаем мониторинг потоков
@@ -65,11 +90,11 @@ class PrometheusRemoteWriter(
         
       } catch {
         case e: Exception =>
-          logger.error(s"🔥 ORIGINAL PrometheusRemoteWriter: ERROR starting scheduler: ${e.getMessage}", e)
-          running.set(false)
+          logger.error(s"ORIGINAL PrometheusRemoteWriter: ERROR starting scheduler: ${e.getMessage}", e)
+          state.set(STOPPED)
       }
     } else {
-      logger.warn(s"🔥 ORIGINAL PrometheusRemoteWriter: Already running, skipping start")
+      logger.warn(s"ORIGINAL PrometheusRemoteWriter: Not in RUNNING state, skipping start")
     }
   }
   
@@ -77,49 +102,113 @@ class PrometheusRemoteWriter(
    * Остановить отправку метрик
    */
   def stop(): Unit = {
-    if (running.compareAndSet(true, false)) {
-      logger.info(s"🔥 ORIGINAL PrometheusRemoteWriter: Stopping periodic export")
-      
-      // GRACEFUL SHUTDOWN для всех пулов потоков
-      logger.info("🔥 ORIGINAL PrometheusRemoteWriter: Shutting down thread pools...")
-      
-      // Останавливаем планировщик
-      scheduler.shutdown()
-      try {
-        if (!scheduler.awaitTermination(3, java.util.concurrent.TimeUnit.SECONDS)) {
-          logger.warn("🔥 ORIGINAL PrometheusRemoteWriter: Scheduler did not terminate gracefully, forcing shutdown")
-          scheduler.shutdownNow()
-        }
-      } catch {
-        case e: InterruptedException =>
-          logger.warn("🔥 ORIGINAL PrometheusRemoteWriter: Interrupted while waiting for scheduler termination")
-          scheduler.shutdownNow()
-          Thread.currentThread().interrupt()
+    // Идемпотентность - предотвращаем двойной вызов
+    if (!finalized.compareAndSet(false, true)) {
+      logger.warn("ORIGINAL PrometheusRemoteWriter: Already finalized")
+      return
+    }
+    
+    state.get match {
+      case STOPPED => 
+        logger.warn("ORIGINAL PrometheusRemoteWriter: Already stopped")
+        return
+      case _ =>
+    }
+    
+    logger.info("ORIGINAL PrometheusRemoteWriter: Stopping periodic export")
+    
+    // 1) Больше не планируем НОВЫЕ задачи, но даём завершиться текущим
+    scheduler.shutdown()
+    try {
+      if (!scheduler.awaitTermination(2, java.util.concurrent.TimeUnit.SECONDS)) {
+        logger.warn("ORIGINAL PrometheusRemoteWriter: Scheduler did not terminate gracefully, forcing shutdown")
+        scheduler.shutdownNow()
       }
-      
-      // Останавливаем THREAD-SAFE процессор метрик
-      // metricsProcessor.shutdown()
-      
-      // Останавливаем мониторинг потоков
-      // ThreadMonitor.stopMonitoring()
-      
-      // Отправляем финальные метрики при остановке
-      logger.info(s"🔥 ORIGINAL PrometheusRemoteWriter: Sending final metrics")
-      sendMetrics()
-      
-      logger.info(s"🔥 ORIGINAL PrometheusRemoteWriter: Stopped and sent final metrics")
-    } else {
-      logger.warn(s"🔥 ORIGINAL PrometheusRemoteWriter: Already stopped or not running")
+    } catch {
+      case e: InterruptedException =>
+        logger.warn("ORIGINAL PrometheusRemoteWriter: Interrupted while waiting for scheduler termination")
+        scheduler.shutdownNow()
+        Thread.currentThread().interrupt()
+    }
+    
+    // 2) Переходим в FLUSHING (enqueue() ещё может принимать, если нужно)
+    if (!state.compareAndSet(RUNNING, FLUSHING)) {
+      logger.warn("ORIGINAL PrometheusRemoteWriter: Stop called not from RUNNING state")
+    }
+    
+    // 3) БЛОКИРУЮЩИЙ финальный флаш с таймаутами и кусованием
+    logger.info("ORIGINAL PrometheusRemoteWriter: Flushing final metrics")
+    flushBlocking()
+    
+    // 4) Теперь уже STOPPED – дальше enqueue() должно отказывать
+    state.set(STOPPED)
+    logger.info("ORIGINAL PrometheusRemoteWriter: Stopped and sent final metrics")
+  }
+  
+  /**
+   * Блокирующий финальный флаш с таймаутами и кусованием
+   */
+  private def flushBlocking(): Unit = {
+    val url = victoriaMetricsUrl.replace("/api/v1/write", "/api/v1/import/prometheus")
+    var chunk = pullChunk(maxCharsPerBatch) // достаёт строку из очереди до лимита
+    while (chunk.nonEmpty) {
+      sendChunk(url, chunk)
+      chunk = pullChunk(maxCharsPerBatch)
     }
   }
   
+  /**
+   * Извлечь чанк метрик из очереди
+   */
+  private def pullChunk(maxChars: Int): String = {
+    // Получаем все метрики из PrometheusMetricsManager
+    PrometheusMetricsManager.getInstance.foreach { manager =>
+      val allMetrics = manager.createPrometheusFormat()
+      if (allMetrics.length > maxChars) {
+        allMetrics.take(maxChars)
+      } else {
+        allMetrics
+      }
+    }.getOrElse("")
+  }
+  
+  /**
+   * Отправить чанк метрик с gzip и таймаутами
+   */
+  private def sendChunk(url: String, data: String): Unit = {
+    if (data.isEmpty) return
+    
+    try {
+      val req = new HttpPost(url)
+      // gzip помогает и по скорости, и по размерам
+      val entity = new GzipCompressingEntity(new StringEntity(data, ContentType.TEXT_PLAIN))
+      req.setEntity(entity)
+      req.setHeader("Content-Type", "text/plain")
+      req.setHeader("Content-Encoding", "gzip")
+
+      val resp = httpClient.execute(req)
+      val code = resp.getCode
+      val body = Option(resp.getEntity).map(e => new String(e.getContent.readAllBytes(), "UTF-8")).getOrElse("")
+      
+      if (code != 204) {
+        logger.error(s"VM import failed: $code body=${body.take(200)}")
+      } else {
+        logger.info(s"Successfully sent chunk of ${data.length} characters to Victoria Metrics")
+      }
+      
+    } catch {
+      case e: Exception =>
+        logger.error(s"Error sending chunk to Victoria Metrics: ${e.getMessage}", e)
+    }
+  }
+
   /**
    * Отправить метрики в Victoria Metrics из очереди
    */
   private def sendMetrics(): Unit = {
     // Проверяем, что writer еще работает
-    if (!running.get()) {
-      logger.warn(s"📊 QUEUE: Writer is stopped, skipping metrics sending")
+    if (state.get() == STOPPED) {
+      logger.warn("QUEUE: Writer is stopped, skipping metrics sending")
       return
     }
     
