@@ -1,0 +1,28 @@
+syntax = "proto3";
+package prometheus;
+
+option java_package = "ru.x5.svs.gatling.prometheus.proto";
+option java_outer_classname = "RemoteProto";
+
+// WriteRequest is the request message for the remote write API.
+message WriteRequest {
+  repeated TimeSeries timeseries = 1;
+}
+
+// TimeSeries represents a single time series.
+message TimeSeries {
+  repeated LabelPair labels = 1;
+  repeated Sample samples = 2;
+}
+
+// LabelPair represents a label name-value pair.
+message LabelPair {
+  string name = 1;
+  string value = 2;
+}
+
+// Sample represents a single sample.
+message Sample {
+  double value = 1;
+  int64 timestamp = 2; // milliseconds since epoch
+}

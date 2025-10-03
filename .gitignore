@@ -1,0 +1,42 @@
+# SBT
+target/
+project/target/
+project/project/
+project/plugins/project/
+.history
+.cache
+.lib/
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+.classpath
+.project
+.settings/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.temp
+*~
+
+# JAR files (except the main artifact)
+*.jar
+!target/scala-*/gatling-prometheus-plugin*.jar
+
+# Scala
+*.class
+*.log
+
+# Metals
+.metals/
+.bloop/

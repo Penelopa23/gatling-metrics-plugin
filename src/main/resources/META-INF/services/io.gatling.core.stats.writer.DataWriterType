@@ -1,0 +1,2 @@
+# Этот файл больше не используется
+# DataWriter регистрируется через io.gatling.core.stats.writer.DataWriterFactory
