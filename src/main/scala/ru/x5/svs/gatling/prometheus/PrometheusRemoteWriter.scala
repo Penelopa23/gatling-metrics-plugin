@@ -3,10 +3,10 @@ package ru.x5.svs.gatling.prometheus
 import org.slf4j.LoggerFactory
 import java.util.concurrent.{ScheduledExecutorService, Executors, TimeUnit}
 import scala.concurrent.ExecutionContext
-import org.apache.hc.client5.http.classic.HttpClients
+import org.apache.hc.client5.http.impl.classic.HttpClients
 import org.apache.hc.client5.http.config.RequestConfig
 import org.apache.hc.core5.util.Timeout
-import org.apache.hc.core5.http.io.entity.{StringEntity, GzipCompressingEntity}
+import org.apache.hc.core5.http.io.entity.StringEntity
 import org.apache.hc.client5.http.classic.methods.HttpPost
 import org.apache.hc.core5.http.ContentType
 // import ru.x5.svs.gatling.prometheus.infrastructure.ThreadSafeExecutorPool
@@ -162,29 +162,29 @@ class PrometheusRemoteWriter(
    */
   private def pullChunk(maxChars: Int): String = {
     // Получаем все метрики из PrometheusMetricsManager
-    PrometheusMetricsManager.getInstance.foreach { manager =>
-      val allMetrics = manager.createPrometheusFormat()
-      if (allMetrics.length > maxChars) {
-        allMetrics.take(maxChars)
-      } else {
-        allMetrics
-      }
-    }.getOrElse("")
+    PrometheusMetricsManager.getInstance match {
+      case Some(manager) =>
+        val allMetrics = manager.createPrometheusFormat()
+        if (allMetrics.length > maxChars) {
+          allMetrics.take(maxChars)
+        } else {
+          allMetrics
+        }
+      case None => ""
+    }
   }
   
   /**
-   * Отправить чанк метрик с gzip и таймаутами
+   * Отправить чанк метрик с таймаутами (без gzip для совместимости)
    */
   private def sendChunk(url: String, data: String): Unit = {
     if (data.isEmpty) return
     
     try {
       val req = new HttpPost(url)
-      // gzip помогает и по скорости, и по размерам
-      val entity = new GzipCompressingEntity(new StringEntity(data, ContentType.TEXT_PLAIN))
+      val entity = new StringEntity(data, ContentType.TEXT_PLAIN)
       req.setEntity(entity)
       req.setHeader("Content-Type", "text/plain")
-      req.setHeader("Content-Encoding", "gzip")
 
       val resp = httpClient.execute(req)
       val code = resp.getCode
